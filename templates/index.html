@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bar At Home</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">    
+</head>
+<body>
+    <div id="app-container">
+    <video id="videoInput" autoplay muted playsinline></video>
+    <div id="bg-container" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
+    <canvas id="overlay"></canvas>
+    <canvas id="visualsCanvas"></canvas>
+    <canvas id="effectsCanvas"></canvas>
+
+    </div>
+        <div id="controls">
+            <section id="global-effect-controls" class="effect-controls-section" style="display: block;">
+                <h2 style="margin-top:-5px">Effect Controls</h2>
+                <div class="effect-controls-grid">
+                    <button class="effect-button" id="strobe-btn">Strobe</button>
+                    <button class="effect-button" id="tile-btn">Tile</button>
+                    <button class="effect-button" id="prt-btn"> Shining Particle</button>
+
+                </div>
+            </section>
+
+            <div id="controls-container">
+    <!-- Các thanh trượt bass, treble, tempo của bạn ở đây -->
+     <div id="effect-start">
+        <div id="visuals-controls">
+            <h2>Background Efects</h2>
+            <div class="button-all">
+                <button id="rgb-btn" class="effect-button">RGB Shift</button>
+                <button id="dist-btn" class="effect-button">Distorted</button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+<div id="AI-music-controls">
+     <h2>🎵Music Recommender🎵</h2>
+        <p style="margin-top:-10px; ">Tell me your mood or favorite genre — I’ll find a playlist for you!</p>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="pop, rock, jazz, punk,..." />
+            <button id="recommendBtn" onclick="getMusicRecommendation()">Music suggestions</button>
+        </div>
+        <div class="results" id="results">
+            <!-- Kết quả gợi ý sẽ được hiển thị ở đây -->
+        </div>
+</div>
+<div id="intro-controls">
+     <h2> Solo Home Bar</h2>
+        <div class="guide-container">
+            <p>1. Choose music via AI.</p>
+            <p>2. Pick your favorite, open YT .</p>
+            <p>3. Back interactive web</p>
+            <p>4. Select effects, dance alone.</p>
+        </div>
+</div>
+
+    <script src="{{ url_for('static', filename='js/server.js') }}"></script>
+
+
+
+
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/server.js') }}"></script>
+
+
+
+    <script>
+        document.getElementById("userInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("recommendBtn").click();
+            }
+        });
+
+        async function getMusicRecommendation() {
+            const userInput = document.getElementById('userInput').value;
+            const resultsDiv = document.getElementById('results');
+            const recommendBtn = document.getElementById('recommendBtn');
+
+            if (!userInput.trim()) {
+                resultsDiv.innerHTML = '<p class="error">Vui lòng nhập sở thích của bạn!</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loader"></div>';
+            recommendBtn.disabled = true;
+            recommendBtn.textContent = 'Đang tìm...';
+
+            try {
+                const response = await fetch('/get_recommendation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: userInput }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `Lỗi từ server: ${response.statusText}`);
+                }
+                
+                // Xây dựng HTML từ dữ liệu JSON nhận được
+                displayResults(data.recommendations);
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = `<p class="error">${error.message}</p>`;
+            } finally {
+                recommendBtn.disabled = false;
+                recommendBtn.textContent = 'Gợi ý nhạc';
+            }
+        }
+
+        function displayResults(recommendations) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // Xóa loader
+
+            if (!recommendations || recommendations.length === 0) {
+                resultsDiv.innerHTML = '<p>Không tìm thấy kết quả phù hợp.</p>';
+                return;
+            }
+
+            recommendations.forEach(rec => {
+                const genreSection = document.createElement('div');
+                genreSection.className = 'genre-section';
+                
+                // Tiêu đề thể loại
+                const genreTitle = document.createElement('h3');
+                genreTitle.textContent = rec.genre;
+                genreSection.appendChild(genreTitle);
+
+                // Container cho các playlist
+                const playlistsContainer = document.createElement('div');
+                playlistsContainer.className = 'playlists-container';
+                
+                if (rec.playlists && rec.playlists.length > 0) {
+                    rec.playlists.forEach(playlist => {
+                        // Mỗi playlist là một thẻ a để có thể click vào
+                        const playlistLink = document.createElement('a');
+                        playlistLink.href = `https://www.youtube.com/playlist?list=${playlist.id}`;
+                        playlistLink.target = '_blank'; // Mở trong tab mới
+                        playlistLink.className = 'playlist-item';
+                        
+                        // Hình ảnh thumbnail
+                        const thumbnail = document.createElement('img');
+                        thumbnail.src = playlist.thumbnail;
+                        thumbnail.alt = playlist.title;
+                        thumbnail.className = 'playlist-thumbnail';
+                        
+                        // Tiêu đề playlist
+                        const title = document.createElement('span');
+                        title.className = 'playlist-title';
+                        title.textContent = playlist.title;
+
+                        playlistLink.appendChild(thumbnail);
+                        playlistLink.appendChild(title);
+                        playlistsContainer.appendChild(playlistLink);
+                    });
+                } else {
+                    playlistsContainer.innerHTML = '<p class="no-playlist">Không tìm thấy playlist cho thể loại này.</p>';
+                }
+                
+                genreSection.appendChild(playlistsContainer);
+                resultsDiv.appendChild(genreSection);
+            });
+        }
+</script>
+</body>
+</html>
